@@ -1,12 +1,15 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Header, Request
+import asyncpg
+from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.config import settings
 from app.idempotency import resolve_idempotency_key
-from app.leads_repo import insert_or_get_lead
+from app.leads_repo import get_lead_status, insert_or_get_lead
+from app.pipeline import attempt_all_steps
 from app.schemas import LeadIn, LeadOut
 
 logger = logging.getLogger("speed_to_lead")
@@ -30,20 +33,44 @@ async def create_lead(
         bucket_minutes=settings.idempotency_bucket_minutes,
     )
 
-    row, duplicate = await insert_or_get_lead(
-        request.app.state.db_pool,
-        idempotency_key=key,
-        idempotency_source=key_source,
-        name=payload.name,
-        email=payload.email,
-        phone=payload.phone,
-        message=payload.message,
-        source=payload.source,
-    )
+    pool = request.app.state.db_pool
+
+    try:
+        row, duplicate = await insert_or_get_lead(
+            pool,
+            idempotency_key=key,
+            idempotency_source=key_source,
+            name=payload.name,
+            email=payload.email,
+            phone=payload.phone,
+            message=payload.message,
+            source=payload.source,
+        )
+    except (asyncpg.PostgresConnectionError, asyncio.TimeoutError, OSError) as exc:
+        logger.error(f"lead_intake_db_unavailable error={exc!r}")
+        raise HTTPException(status_code=503, detail="Temporarily unavailable, please retry") from exc
 
     logger.info(
         f"lead_intake lead_id={row['id']} duplicate={duplicate} idempotency_source={key_source}"
     )
+
+    if not duplicate:
+        # Persist-then-process (ADR 0008): the row above is already committed before any
+        # downstream call is attempted, so a crash here leaves a recoverable 'pending'
+        # row for the reconciliation sweep to pick up, not a lost lead.
+        lead_for_pipeline = {
+            "id": row["id"],
+            "name": payload.name,
+            "email": payload.email,
+            "phone": payload.phone,
+            "message": payload.message,
+            "source": payload.source,
+        }
+        await attempt_all_steps(pool, request.app.state.http_client, lead_for_pipeline, settings.max_step_attempts)
+        row = await get_lead_status(pool, row["id"])
+    # Duplicates are not reprocessed here (ADR 0008): the intake endpoint stays
+    # single-purpose (accept + dedupe); resuming a stuck row is the reconciliation
+    # sweep's job, not the request path's.
 
     return LeadOut(
         id=row["id"],

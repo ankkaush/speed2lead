@@ -23,6 +23,17 @@ async def client():
             yield ac
 
 
+@pytest_asyncio.fixture
+async def db_pool():
+    """A standalone pool for tests that exercise the repo layer directly (e.g.
+    reconciliation eligibility), independent of the app's own pool lifecycle."""
+    pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=2)
+    try:
+        yield pool
+    finally:
+        await pool.close()
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def cleanup_test_leads():
     yield

@@ -18,10 +18,21 @@ class Settings(BaseSettings):
     app_env: str = "development"
     database_url: str
     idempotency_bucket_minutes: int = 5
+
     hubspot_access_token: Optional[str] = None
     slack_webhook_url: Optional[str] = None
     resend_api_key: Optional[str] = None
+    resend_from_email: str = "onboarding@resend.dev"
     sentry_dsn: Optional[str] = None
+
+    # Phase 4 reliability (ADR 0009)
+    db_command_timeout_seconds: float = 10.0
+    http_connect_timeout_seconds: float = 5.0
+    http_read_timeout_seconds: float = 10.0
+    max_step_attempts: int = 5
+    backoff_base_seconds: int = 60
+    backoff_cap_seconds: int = 3600
+    reconciliation_interval_seconds: int = 120
 
 
 settings = Settings()

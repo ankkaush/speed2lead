@@ -12,10 +12,14 @@ data are ever committed.
 
 ## Status
 
-Phase 3 (Core Lead Pipeline / Walking Skeleton) is in progress. The lead intake endpoint
-(`POST /leads`) is live: validation, idempotency (client-supplied key or a server-derived
-fallback), and persistence to Postgres, with per-step status columns for the CRM/
-notification/acknowledgement steps that Phase 4 will wire up. See the phase roadmap below.
+Phase 4 (Reliability Hardening) is in progress. `POST /leads` now attempts the CRM/
+notification/acknowledgement steps synchronously on intake (best-effort, once), classifies
+every outcome as success/transient/permanent, and a background reconciliation sweep
+(every 2 minutes, in-process, no external queue) retries transient failures on exponential
+backoff (5 attempts max, 1 minute base, capped at 1 hour) until it gives up. HubSpot/Slack/
+Resend credentials aren't configured yet in this environment, so every integration
+currently short-circuits to a clean "not configured" failure rather than a fake success —
+see [ADR 0009](docs/decisions/0009-reliability-hardening.md). See the phase roadmap below.
 
 ## Architecture (current decisions)
 
@@ -29,6 +33,7 @@ notification/acknowledgement steps that Phase 4 will wire up. See the phase road
 | Hosting | Render | [`0006`](docs/decisions/0006-hosting.md) |
 | Leads data model | Single `leads` table, per-step status columns | [`0007`](docs/decisions/0007-leads-data-model.md) |
 | Idempotency strategy | Client key, server-derived fallback | [`0008`](docs/decisions/0008-idempotency-strategy.md) |
+| Reliability strategy | Classify + in-process backoff retry, no queue/broker | [`0009`](docs/decisions/0009-reliability-hardening.md) |
 
 Every significant architectural decision — what it is, why it's needed, what alternatives
 were considered, and what trade-off is accepted — is recorded in
