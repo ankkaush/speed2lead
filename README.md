@@ -12,7 +12,10 @@ data are ever committed.
 
 ## Status
 
-Early foundation stage (Phase 2). No business logic yet — see the phase roadmap below.
+Phase 3 (Core Lead Pipeline / Walking Skeleton) is in progress. The lead intake endpoint
+(`POST /leads`) is live: validation, idempotency (client-supplied key or a server-derived
+fallback), and persistence to Postgres, with per-step status columns for the CRM/
+notification/acknowledgement steps that Phase 4 will wire up. See the phase roadmap below.
 
 ## Architecture (current decisions)
 
@@ -24,6 +27,8 @@ Early foundation stage (Phase 2). No business logic yet — see the phase roadma
 | CRM | HubSpot (private app token) | [`0004`](docs/decisions/0004-crm-integration.md) |
 | Notification / email | Slack incoming webhook / Resend | [`0005`](docs/decisions/0005-notification-and-email.md) |
 | Hosting | Render | [`0006`](docs/decisions/0006-hosting.md) |
+| Leads data model | Single `leads` table, per-step status columns | [`0007`](docs/decisions/0007-leads-data-model.md) |
+| Idempotency strategy | Client key, server-derived fallback | [`0008`](docs/decisions/0008-idempotency-strategy.md) |
 
 Every significant architectural decision — what it is, why it's needed, what alternatives
 were considered, and what trade-off is accepted — is recorded in
@@ -43,8 +48,31 @@ CI complexity unless a concrete requirement justifies them.
    `.env` is gitignored and must never be committed — it holds real local secrets
    (your own Supabase connection string, HubSpot private app token, Slack webhook URL,
    Resend API key). `.env.example` only lists the variable names.
-3. (Setup instructions for installing dependencies and running the app will be added here
-   once the FastAPI skeleton and its dependency list are in place.)
+
+   `DATABASE_URL` must point at your own Supabase project's Postgres database — the
+   **Session pooler** connection string (Project → Connect → Direct Connection tab →
+   Session pooler), not the direct-connection host, since the direct host requires IPv6
+   and many networks are IPv4-only. Apply the schema in
+   [`db/migrations/0001_create_leads_table.sql`](db/migrations/0001_create_leads_table.sql)
+   to that database before running the app.
+3. Create a virtual environment and install dependencies:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-dev.txt
+   ```
+4. Run the app:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+   Check it's up: `curl http://127.0.0.1:8000/health`
+5. Run the tests (they run against the real database configured in `.env`, per this
+   project's preference for real dependencies over mocks — see
+   [`docs/decisions/0004-crm-integration.md`](docs/decisions/0004-crm-integration.md) for
+   the same reasoning applied to the CRM):
+   ```bash
+   pytest
+   ```
 
 ## Project roadmap
 
