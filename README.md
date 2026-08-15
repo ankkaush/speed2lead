@@ -20,17 +20,22 @@ below to set it up with your own credentials, and
 [§4](#4-configuration-your-own-credentials)). Deployed on Render per
 [ADR 0014](docs/decisions/0014-deployment.md).
 
-**Status**: Phase 9 (Production Review / Chaos Pass) complete. Rate limiting, Sentry
-alerting, and correlation-ID tracing were all verified live against the deployed
-instance; the real Phase 8 incident is written up as a formal postmortem
-([ADR 0016](docs/decisions/0016-phase8-incident-postmortem.md)); and a second, unrelated
-real finding — the Slack webhook URL leaking via a logging library's own automatic
-request logging — was caught, fixed, and documented
-([ADR 0017](docs/decisions/0017-slack-webhook-url-logging-exposure.md)). One item
-remains open honestly rather than assumed complete: live end-to-end confirmation that the
-rotated Slack webhook and the logging fix work together in production, blocked by
-repeated clipboard-tooling friction rather than any known code issue — the fix passes all
-61 automated tests locally.
+**Status**: All 12 phases complete, through Phase 12 (Case Study) — see
+[`docs/case-study.md`](docs/case-study.md) for the full evidence-based write-up of what
+was built, tested, and learned. Phase 9's chaos pass verified rate limiting, Sentry
+alerting, and correlation-ID tracing live against the deployed instance; the real Phase 8
+credential-exposure incident is written up as a formal postmortem
+([ADR 0016](docs/decisions/0016-phase8-incident-postmortem.md)); a second, unrelated
+finding from that same phase — the Slack webhook URL leaking via a logging library's own
+automatic request logging — was caught, fixed, and documented
+([ADR 0017](docs/decisions/0017-slack-webhook-url-logging-exposure.md)). Phase 11
+re-verified the project's reusability claims against the current code and corrected a
+documentation gap on database portability
+([ADR 0018](docs/decisions/0018-reusability-review.md)). One item remains open honestly
+rather than assumed resolved: live end-to-end confirmation that the rotated Slack webhook
+and the Phase 9 logging fix work together in production, blocked by repeated
+clipboard-tooling friction during verification rather than any known code issue — the fix
+passes all 61 automated tests locally.
 
 ## 1. What this automation does
 
