@@ -12,11 +12,20 @@ data are ever committed.
 
 ## Status
 
-Phase 5 (Security Hardening) is in progress. `POST /leads` now requires a valid
-HMAC-SHA256 signature (`X-Webhook-Signature` header, over the raw body, shared-secret
-based — assumes a server-to-server caller, not a browser) and is rate-limited per client
-IP; any unhandled error anywhere in the app now returns a generic response and is logged
-structurally rather than leaking internals — see
+Phase 6 (Observability) is in progress. Every request carries a correlation ID
+(`X-Request-ID`, accepted from the caller or generated) threaded automatically into every
+structured log line for that request; `/health` verifies real database connectivity
+instead of always saying "ok"; Sentry is wired up for both real crashes and a deliberate
+alert the moment a lead step permanently fails, with PII excluded from what gets sent —
+see [ADR 0011](docs/decisions/0011-observability.md). No dashboard tooling — see
+[`docs/runbook.md`](docs/runbook.md) for the actual SQL an operator runs against the
+database directly.
+
+Phase 5 (Security Hardening) is complete. `POST /leads` requires a valid HMAC-SHA256
+signature (`X-Webhook-Signature` header, over the raw body, shared-secret based —
+assumes a server-to-server caller, not a browser) and is rate-limited per client IP; any
+unhandled error anywhere in the app returns a generic response and is logged structurally
+rather than leaking internals — see
 [ADR 0010](docs/decisions/0010-security-hardening.md).
 
 Phase 4 (Reliability Hardening) is functionally complete, including the real HubSpot/
@@ -45,6 +54,7 @@ that implies). See the phase roadmap below.
 | Idempotency strategy | Client key, server-derived fallback | [`0008`](docs/decisions/0008-idempotency-strategy.md) |
 | Reliability strategy | Classify + in-process backoff retry, no queue/broker | [`0009`](docs/decisions/0009-reliability-hardening.md) |
 | Security model | HMAC signature (server-to-server) + in-process rate limit | [`0010`](docs/decisions/0010-security-hardening.md) |
+| Observability | Correlation IDs, real health check, Sentry, SQL runbook (no dashboard) | [`0011`](docs/decisions/0011-observability.md) |
 
 Every significant architectural decision — what it is, why it's needed, what alternatives
 were considered, and what trade-off is accepted — is recorded in

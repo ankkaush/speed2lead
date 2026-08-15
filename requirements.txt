@@ -4,3 +4,4 @@ pydantic-settings
 pydantic[email]
 asyncpg
 httpx
+sentry-sdk

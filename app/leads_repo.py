@@ -1,4 +1,5 @@
 import asyncpg
+import sentry_sdk
 
 from app.adapters.base import StepResult
 
@@ -123,11 +124,33 @@ async def record_step_attempt(
     query = _STEP_UPDATE_QUERIES[step]
     async with pool.acquire() as conn:
         if step == "crm":
-            await conn.fetchrow(
+            row = await conn.fetchrow(
                 query, lead_id, result.outcome.value, result.error, max_attempts, result.external_id
             )
         else:
-            await conn.fetchrow(query, lead_id, result.outcome.value, result.error, max_attempts)
+            row = await conn.fetchrow(query, lead_id, result.outcome.value, result.error, max_attempts)
+
+    # A row only ever reaches this call while its status is still 'pending' (the sweep
+    # filters on exactly that -- see fetch_eligible_for_retry below), so a transition to
+    # 'failed' here happens exactly once per step per lead: either immediately
+    # (permanent failure) or on exhausting the retry budget. That's the "alert on a
+    # stuck lead" moment ADR 0011/Phase 4 deferred -- captured as a Sentry message, not
+    # an exception, since nothing crashed; this is a business-level "needs a look"
+    # signal. Deliberately excludes result.error from the payload: a provider's error
+    # text could in principle echo back submitted data (e.g. "invalid email: ..."), and
+    # this project's PII policy applies to observability tooling, not just app logs.
+    if row[f"{step}_status"] == "failed":
+        with sentry_sdk.new_scope() as scope:
+            scope.set_context(
+                "lead_step_failure",
+                {
+                    "lead_id": str(lead_id),
+                    "step": step,
+                    "attempts": row[f"{step}_attempts"],
+                    "outcome": result.outcome.value,
+                },
+            )
+            sentry_sdk.capture_message(f"Lead step permanently failed: step={step}", level="warning")
 
 
 # Backoff, computed once here in SQL rather than duplicated in Python (single source of

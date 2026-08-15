@@ -35,14 +35,21 @@ def _reset_rate_limiter():
 
 @pytest_asyncio.fixture(autouse=True)
 def _no_real_integration_calls(monkeypatch):
-    """Real HubSpot/Slack/Resend credentials live in this dev environment's .env (Phase
-    4 real-integration work), but the automated suite must stay side-effect-free -- no
-    real Slack messages, HubSpot contacts, or emails on every test run. Forced off
-    globally here rather than per-test; test_adapters.py additionally sets this
-    explicitly per test for local readability."""
+    """Real HubSpot/Slack/Resend/Sentry credentials live in this dev environment's .env
+    (Phase 4/6 real-integration work), but the automated suite must stay side-effect-free
+    -- no real Slack messages, HubSpot contacts, emails, or Sentry events on every test
+    run. Forced off globally here rather than per-test; test_adapters.py additionally
+    sets the first three explicitly per test for local readability.
+
+    sentry_dsn specifically must be unset BEFORE the lifespan runs (i.e. before the
+    `client` fixture's `async with app.router.lifespan_context(app)`), since
+    sentry_sdk.init() is called once at startup, not per-request -- pytest runs autouse
+    fixtures before explicitly-requested ones at the same scope, so this ordering is
+    guaranteed as long as this fixture doesn't itself depend on `client`."""
     monkeypatch.setattr(settings, "hubspot_access_token", None)
     monkeypatch.setattr(settings, "slack_webhook_url", None)
     monkeypatch.setattr(settings, "resend_api_key", None)
+    monkeypatch.setattr(settings, "sentry_dsn", None)
 
 
 def signed_post_kwargs(payload: dict, extra_headers: dict = None) -> dict:

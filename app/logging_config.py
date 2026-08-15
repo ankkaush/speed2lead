@@ -3,6 +3,8 @@ import logging
 import sys
 import time
 
+from app.correlation import correlation_id_var
+
 
 class JsonFormatter(logging.Formatter):
     """Minimal structured logging: one JSON object per line.
@@ -20,6 +22,9 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
             "logger": record.name,
         }
+        correlation_id = correlation_id_var.get()
+        if correlation_id:
+            payload["correlation_id"] = correlation_id
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
         return json.dumps(payload)
