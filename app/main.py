@@ -2,7 +2,8 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.db import close_pool, init_pool
@@ -48,6 +49,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Speed-to-Lead", lifespan=lifespan)
 app.include_router(leads_router)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Safety net (ADR 0010): catches anything not already handled by a more specific
+    handler (FastAPI/Starlette keep their own handling of HTTPException and validation
+    errors, so 401/422/429/503 etc. are unaffected by this and still return their normal
+    bodies). Two things this fixes at once: no internal detail (a stack trace, an
+    exception message that might contain a fragment of a DB query or a provider's
+    response) ever reaches the caller, and — unlike an unhandled exception falling
+    through to Starlette's default behavior — this one *does* go through our structured
+    JSON logger, so it looks like every other log line an operator has to read.
+    """
+    logger.exception(f"unhandled_exception path={request.url.path}")
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/health")

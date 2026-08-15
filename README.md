@@ -12,6 +12,13 @@ data are ever committed.
 
 ## Status
 
+Phase 5 (Security Hardening) is in progress. `POST /leads` now requires a valid
+HMAC-SHA256 signature (`X-Webhook-Signature` header, over the raw body, shared-secret
+based — assumes a server-to-server caller, not a browser) and is rate-limited per client
+IP; any unhandled error anywhere in the app now returns a generic response and is logged
+structurally rather than leaking internals — see
+[ADR 0010](docs/decisions/0010-security-hardening.md).
+
 Phase 4 (Reliability Hardening) is functionally complete, including the real HubSpot/
 Slack/Resend integrations it was designed to protect. `POST /leads` persists the lead,
 then attempts CRM push, team notification, and acknowledgement email synchronously
@@ -37,6 +44,7 @@ that implies). See the phase roadmap below.
 | Leads data model | Single `leads` table, per-step status columns | [`0007`](docs/decisions/0007-leads-data-model.md) |
 | Idempotency strategy | Client key, server-derived fallback | [`0008`](docs/decisions/0008-idempotency-strategy.md) |
 | Reliability strategy | Classify + in-process backoff retry, no queue/broker | [`0009`](docs/decisions/0009-reliability-hardening.md) |
+| Security model | HMAC signature (server-to-server) + in-process rate limit | [`0010`](docs/decisions/0010-security-hardening.md) |
 
 Every significant architectural decision — what it is, why it's needed, what alternatives
 were considered, and what trade-off is accepted — is recorded in
@@ -80,6 +88,17 @@ CI complexity unless a concrete requirement justifies them.
    the same reasoning applied to the CRM):
    ```bash
    pytest
+   ```
+6. `POST /leads` requires a valid `X-Webhook-Signature` header as of Phase 5
+   ([ADR 0010](docs/decisions/0010-security-hardening.md)) — an HMAC-SHA256 of the raw
+   request body using `WEBHOOK_SIGNING_SECRET`. To call it manually:
+   ```bash
+   BODY='{"name":"Test","email":"you@example.com","message":"hello"}'
+   SIG=$(python3 -c "import hashlib,hmac,os,sys; print(hmac.new(os.environ['WEBHOOK_SIGNING_SECRET'].encode(), sys.argv[1].encode(), hashlib.sha256).hexdigest())" "$BODY")
+   curl -X POST http://127.0.0.1:8000/leads \
+     -H "Content-Type: application/json" \
+     -H "X-Webhook-Signature: $SIG" \
+     -d "$BODY"
    ```
 
 ## Project roadmap

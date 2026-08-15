@@ -1,3 +1,7 @@
+import hashlib
+import hmac
+import json
+
 import asyncpg
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -16,6 +20,20 @@ TEST_EMAIL_LOCAL_PREFIX = "speed-to-lead-test-"
 
 
 @pytest_asyncio.fixture(autouse=True)
+def _reset_rate_limiter():
+    """The rate limiter's state is a module-level dict (app/rate_limit.py), shared across
+    the whole test run since every test client shares the same fake client IP under
+    httpx's ASGITransport. Without resetting it, unrelated tests could trip the 20-
+    requests/60s limit purely from accumulated test traffic, not from anything the test
+    itself is checking."""
+    from app.rate_limit import _request_log
+
+    _request_log.clear()
+    yield
+    _request_log.clear()
+
+
+@pytest_asyncio.fixture(autouse=True)
 def _no_real_integration_calls(monkeypatch):
     """Real HubSpot/Slack/Resend credentials live in this dev environment's .env (Phase
     4 real-integration work), but the automated suite must stay side-effect-free -- no
@@ -25,6 +43,19 @@ def _no_real_integration_calls(monkeypatch):
     monkeypatch.setattr(settings, "hubspot_access_token", None)
     monkeypatch.setattr(settings, "slack_webhook_url", None)
     monkeypatch.setattr(settings, "resend_api_key", None)
+
+
+def signed_post_kwargs(payload: dict, extra_headers: dict = None) -> dict:
+    """Builds the (content=, headers=) kwargs for a correctly-signed POST /leads call
+    (ADR 0010). Serializes the body ourselves and signs those exact bytes -- rather than
+    passing json=payload to httpx and hoping its internal serialization matches what we
+    sign -- so there's no risk of a subtle mismatch producing a false signature failure."""
+    body = json.dumps(payload).encode("utf-8")
+    signature = hmac.new(settings.webhook_signing_secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    headers = {"Content-Type": "application/json", "X-Webhook-Signature": signature}
+    if extra_headers:
+        headers.update(extra_headers)
+    return {"content": body, "headers": headers}
 
 
 @pytest_asyncio.fixture

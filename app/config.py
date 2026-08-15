@@ -34,5 +34,10 @@ class Settings(BaseSettings):
     backoff_cap_seconds: int = 3600
     reconciliation_interval_seconds: int = 120
 
+    # Phase 5 security (ADR 0010)
+    webhook_signing_secret: str
+    rate_limit_max_requests: int = 20
+    rate_limit_window_seconds: int = 60
+
 
 settings = Settings()

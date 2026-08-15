@@ -4,20 +4,29 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import asyncpg
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.config import settings
 from app.idempotency import resolve_idempotency_key
 from app.leads_repo import get_lead_status, insert_or_get_lead
 from app.pipeline import attempt_all_steps
+from app.rate_limit import check_rate_limit
 from app.schemas import LeadIn, LeadOut
+from app.security import verify_webhook_signature
 
 logger = logging.getLogger("speed_to_lead")
 
 router = APIRouter()
 
 
-@router.post("/leads", response_model=LeadOut)
+@router.post(
+    "/leads",
+    response_model=LeadOut,
+    # Rate limit first (cheap, rejects floods before doing any crypto work), then the
+    # signature check (ADR 0010) -- both run before the route body, before we've spent
+    # any DB or downstream-API effort on a request that shouldn't be trusted.
+    dependencies=[Depends(check_rate_limit), Depends(verify_webhook_signature)],
+)
 async def create_lead(
     payload: LeadIn,
     request: Request,
