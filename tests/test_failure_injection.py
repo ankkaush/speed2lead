@@ -154,7 +154,8 @@ async def test_pipeline_step_independence_when_one_adapter_raises(db_pool, monke
 
     async with db_pool.acquire() as conn:
         final = await conn.fetchrow(
-            "SELECT crm_status, notify_status, ack_status, notify_attempts FROM leads WHERE id = $1", lead_id
+            "SELECT crm_status, notify_status, ack_status, notify_attempts, notify_error FROM leads WHERE id = $1",
+            lead_id,
         )
         await conn.execute("DELETE FROM leads WHERE id = $1", lead_id)
 
@@ -162,7 +163,10 @@ async def test_pipeline_step_independence_when_one_adapter_raises(db_pool, monke
     # as every other test) despite notify raising an outright exception.
     assert final["crm_status"] == "failed"
     assert final["ack_status"] == "failed"
-    # notify never got a chance to update its own status -- pipeline.attempt_step caught
-    # the exception, logged it, and moved on without writing anything for this step.
+    # notify's raised exception is now treated as a transient failure (ADR 0015): still
+    # 'pending' (eligible for retry, attempts=1 < the cap) rather than lost entirely, and
+    # the attempt was actually recorded -- a persistently-broken adapter now counts
+    # toward the give-up budget instead of retrying forever with zero visible progress.
     assert final["notify_status"] == "pending"
-    assert final["notify_attempts"] == 0
+    assert final["notify_attempts"] == 1
+    assert final["notify_error"] == "unexpected error in adapter: RuntimeError"
