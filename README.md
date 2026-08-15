@@ -20,6 +20,18 @@ below to set it up with your own credentials, and
 [§4](#4-configuration-your-own-credentials)). Deployed on Render per
 [ADR 0014](docs/decisions/0014-deployment.md).
 
+**Status**: Phase 9 (Production Review / Chaos Pass) complete. Rate limiting, Sentry
+alerting, and correlation-ID tracing were all verified live against the deployed
+instance; the real Phase 8 incident is written up as a formal postmortem
+([ADR 0016](docs/decisions/0016-phase8-incident-postmortem.md)); and a second, unrelated
+real finding — the Slack webhook URL leaking via a logging library's own automatic
+request logging — was caught, fixed, and documented
+([ADR 0017](docs/decisions/0017-slack-webhook-url-logging-exposure.md)). One item
+remains open honestly rather than assumed complete: live end-to-end confirmation that the
+rotated Slack webhook and the logging fix work together in production, blocked by
+repeated clipboard-tooling friction rather than any known code issue — the fix passes all
+61 automated tests locally.
+
 ## 1. What this automation does
 
 ```
@@ -230,6 +242,8 @@ performed. Clone this repository and configure it with your own credentials per
 | [0013](docs/decisions/0013-reusability-and-public-release.md) | Adapter `Protocol`, MIT license, public-release audit |
 | [0014](docs/decisions/0014-deployment.md) | Render blueprint, shared production database, separate prod secret |
 | [0015](docs/decisions/0015-secret-hygiene-and-silent-failure-fix.md) | Secret whitespace validation, unexpected-exception handling fix |
+| [0016](docs/decisions/0016-phase8-incident-postmortem.md) | Phase 8 incident postmortem |
+| [0017](docs/decisions/0017-slack-webhook-url-logging-exposure.md) | Slack webhook URL logging exposure, fixed |
 
 ## Project roadmap
 
@@ -242,8 +256,8 @@ performed. Clone this repository and configure it with your own credentials per
 6. Observability
 7. Testing Pass
 8. Deployment
-9. Production Review / Chaos Pass *(current phase)*
-10. Documentation
+9. Production Review / Chaos Pass
+10. Documentation *(current phase)*
 11. Reusability Review
 12. Case Study
 

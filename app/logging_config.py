@@ -37,3 +37,15 @@ def configure_logging() -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(logging.INFO)
+
+    # ADR 0017: httpx logs "HTTP Request: <method> <full URL> ..." at INFO for every
+    # call it makes, and that URL can itself be a credential -- Slack's incoming webhook
+    # authentication is embedded directly in the URL (unlike HubSpot/Resend, which use an
+    # Authorization header httpx never logs). At root-logger INFO, that line was flowing
+    # into this app's own structured logs on every Slack call, leaking the webhook URL
+    # into Render's persisted log history continuously, not as a one-off mistake.
+    # Silenced at the source: httpx/httpcore's own per-request logging isn't something
+    # this app added deliberately, and everything it captures that actually matters is
+    # already covered by this app's own explicit, deliberately-written log lines.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
