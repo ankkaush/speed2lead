@@ -170,6 +170,18 @@ Swapping **hosting platforms** (away from Render) doesn't touch application code
 — it's a deployment-config change (start command, env vars, health check path), not a
 code change; see [ADR 0006](docs/decisions/0006-hosting.md).
 
+**Database portability is two different claims, not one** (per
+[ADR 0018](docs/decisions/0018-reusability-review.md)):
+- Swapping **Supabase for a different Postgres host** (a self-hosted instance, AWS RDS,
+  Neon, Railway Postgres, plain local Postgres) needs **zero code changes** — nothing in
+  `app/` references Supabase specifically; only `DATABASE_URL` changes.
+- Swapping **Postgres itself for a different database engine** (MySQL, SQLite, etc.)
+  is **not** a configuration change. `app/leads_repo.py` and the migrations in
+  `db/migrations/` use Postgres-specific SQL — `ON CONFLICT ... DO NOTHING`, `RETURNING`,
+  a native `CREATE TYPE ... AS ENUM`, a PL/pgSQL trigger function — and the `asyncpg`
+  driver itself only speaks Postgres. Using a different database engine would mean
+  rewriting the repository layer and migrations, not pointing an env var elsewhere.
+
 ## 7. Security considerations
 
 - **Secrets never touch the repository.** `.gitignore` excludes `.env` and all
@@ -244,6 +256,7 @@ performed. Clone this repository and configure it with your own credentials per
 | [0015](docs/decisions/0015-secret-hygiene-and-silent-failure-fix.md) | Secret whitespace validation, unexpected-exception handling fix |
 | [0016](docs/decisions/0016-phase8-incident-postmortem.md) | Phase 8 incident postmortem |
 | [0017](docs/decisions/0017-slack-webhook-url-logging-exposure.md) | Slack webhook URL logging exposure, fixed |
+| [0018](docs/decisions/0018-reusability-review.md) | Phase 11 reusability re-verification; database portability documented |
 
 ## Project roadmap
 
@@ -257,8 +270,8 @@ performed. Clone this repository and configure it with your own credentials per
 7. Testing Pass
 8. Deployment
 9. Production Review / Chaos Pass
-10. Documentation *(current phase)*
-11. Reusability Review
+10. Documentation
+11. Reusability Review *(current phase)*
 12. Case Study
 
 Security, testing, logging, and documentation are treated as continuous practices
