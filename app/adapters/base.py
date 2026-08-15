@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional, Protocol
+
+import httpx
 
 
 class StepOutcome(str, Enum):
@@ -22,6 +24,20 @@ class StepResult:
     outcome: StepOutcome
     external_id: Optional[str] = None
     error: Optional[str] = None
+
+
+class StepAdapter(Protocol):
+    """The whole contract a downstream integration must satisfy (ADR 0013): one async
+    function, `lead` in, `StepResult` out. app/adapters/crm.py (HubSpot), notify.py
+    (Slack), ack.py (Resend) each satisfy this structurally already -- Python's
+    structural typing means they don't need to inherit from anything, just match this
+    shape. Swapping a provider means writing a new module with this same signature and
+    pointing app/pipeline.py's _STEP_ADAPTERS dict at it; nothing else in the codebase
+    (persistence, idempotency, retry/backoff, reconciliation) needs to change, since none
+    of it knows or cares which provider is behind the call.
+    """
+
+    async def __call__(self, lead: Any, client: httpx.AsyncClient) -> "StepResult": ...
 
 
 def classify_http_status(status_code: int) -> StepOutcome:
