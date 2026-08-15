@@ -271,7 +271,7 @@ performed. Clone this repository and configure it with your own credentials per
 8. Deployment
 9. Production Review / Chaos Pass
 10. Documentation
-11. Reusability Review *(current phase)*
+11. Reusability Review
 12. Case Study
 
 Security, testing, logging, and documentation are treated as continuous practices
