@@ -1,0 +1,28 @@
+# Render Blueprint (ADR 0014) — infra-as-code for the deploy shape, not secrets.
+# Env vars listed under `envVars` with `sync: false` must be entered manually in the
+# Render dashboard; their names are declared here so the required configuration is
+# checked into the repo, but no value ever is.
+
+services:
+  - type: web
+    name: speed-to-lead
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: HUBSPOT_ACCESS_TOKEN
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: WEBHOOK_SIGNING_SECRET
+        sync: false
