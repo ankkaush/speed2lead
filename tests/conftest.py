@@ -15,6 +15,18 @@ TEST_EMAIL_DOMAIN = "example.com"
 TEST_EMAIL_LOCAL_PREFIX = "speed-to-lead-test-"
 
 
+@pytest_asyncio.fixture(autouse=True)
+def _no_real_integration_calls(monkeypatch):
+    """Real HubSpot/Slack/Resend credentials live in this dev environment's .env (Phase
+    4 real-integration work), but the automated suite must stay side-effect-free -- no
+    real Slack messages, HubSpot contacts, or emails on every test run. Forced off
+    globally here rather than per-test; test_adapters.py additionally sets this
+    explicitly per test for local readability."""
+    monkeypatch.setattr(settings, "hubspot_access_token", None)
+    monkeypatch.setattr(settings, "slack_webhook_url", None)
+    monkeypatch.setattr(settings, "resend_api_key", None)
+
+
 @pytest_asyncio.fixture
 async def client():
     async with app.router.lifespan_context(app):

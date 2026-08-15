@@ -12,14 +12,17 @@ data are ever committed.
 
 ## Status
 
-Phase 4 (Reliability Hardening) is in progress. `POST /leads` now attempts the CRM/
-notification/acknowledgement steps synchronously on intake (best-effort, once), classifies
-every outcome as success/transient/permanent, and a background reconciliation sweep
-(every 2 minutes, in-process, no external queue) retries transient failures on exponential
-backoff (5 attempts max, 1 minute base, capped at 1 hour) until it gives up. HubSpot/Slack/
-Resend credentials aren't configured yet in this environment, so every integration
-currently short-circuits to a clean "not configured" failure rather than a fake success —
-see [ADR 0009](docs/decisions/0009-reliability-hardening.md). See the phase roadmap below.
+Phase 4 (Reliability Hardening) is functionally complete, including the real HubSpot/
+Slack/Resend integrations it was designed to protect. `POST /leads` persists the lead,
+then attempts CRM push, team notification, and acknowledgement email synchronously
+(best-effort, once), classifying every outcome as success/transient/permanent — each
+step independent, one failing never blocks the others. A background reconciliation sweep
+(every 2 minutes, in-process, no external queue) retries transient failures on
+exponential backoff (5 attempts max, 1 minute base, capped at 1 hour) until it gives up.
+HubSpot upserts by email (create-or-update, no conflict on a repeat lead from the same
+person); Resend uses the shared test sender (no domain verification yet — see
+[ADR 0009](docs/decisions/0009-reliability-hardening.md) for the recipient restriction
+that implies). See the phase roadmap below.
 
 ## Architecture (current decisions)
 

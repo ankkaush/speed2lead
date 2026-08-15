@@ -84,11 +84,6 @@ correct retry behavior for free rather than needing its own bespoke error handli
 
 ## Trade-offs
 
-- **A known gap, not resolved here**: HubSpot returns 409 when a contact's email already
-  exists (HubSpot enforces email uniqueness). This is currently classified as a
-  permanent failure with an explicit error message — not silently treated as success,
-  but also not properly resolved (a proper fix is search-then-upsert against the
-  existing contact). Flagged in `app/adapters/crm.py` and here as a follow-up.
 - **Single-process reconciliation has a scaling ceiling**: if this were ever deployed as
   multiple app instances, two instances' sweeps could both pick up the same eligible row
   in the same window and attempt it twice — wasteful but not unsafe (the adapters aren't
@@ -105,3 +100,29 @@ correct retry behavior for free rather than needing its own bespoke error handli
   the 5s/10s timeouts above. Acceptable at this project's scale; if it ever became a
   problem, the lever is deferring the first attempt to FastAPI `BackgroundTasks` (still
   no queue/broker needed) rather than blocking the response.
+
+## Update — real integrations connected (HubSpot/Slack/Resend)
+
+With real credentials in place, the CRM adapter was rewritten to use HubSpot's **batch
+upsert-by-email** endpoint instead of plain "create contact" — this closes the 409 gap
+noted above (create on first submission, update in place on every later one from the
+same person, no conflict either way) rather than leaving it as a known limitation.
+Verified against real HubSpot/Slack/Resend accounts: successful delivery to all three,
+one adapter failing without blocking the other two, and a full transient-failure →
+backoff-eligible → successful-retry cycle exercised end to end.
+
+The lead's `message` now maps to a `lead_message` custom contact property in HubSpot
+(created manually via the HubSpot UI rather than granting the private app token a
+schema-write scope it would only need once — least privilege).
+
+**Test hygiene, decided alongside this**: with real credentials present in the dev
+`.env`, the automated test suite would otherwise make real calls to all three providers
+on every run — posting real Slack messages, creating real HubSpot contacts, and failing
+Resend's recipient restriction for every test email. An autouse `monkeypatch` fixture
+(`tests/conftest.py`) now forces all three credentials to `None` for the whole suite, so
+tests stay deterministic and side-effect-free regardless of what's in `.env`. This is
+consistent with, not a departure from, this project's "prefer real over mocks"
+philosophy (ADR 0004): that principle applies to infrastructure we own and control (the
+database); a third party's live API with real side effects and rate limits is a
+different category, and gets exercised deliberately and manually instead, as was done to
+verify this update.

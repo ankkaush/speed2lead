@@ -3,7 +3,11 @@ import httpx
 from app.adapters.base import StepOutcome, StepResult, classify_http_status
 from app.config import settings
 
-_HUBSPOT_CONTACTS_URL = "https://api.hubapi.com/crm/v3/objects/contacts"
+# Batch upsert-by-email (ADR 0009 follow-up): HubSpot enforces unique contact emails, so
+# the plain "create contact" endpoint returns 409 for a repeat lead from the same person
+# -- previously misclassified as a permanent failure. Upserting by email is the correct
+# fix: create on first contact, update in place on every later one, no conflict either way.
+_HUBSPOT_UPSERT_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert"
 
 
 async def attempt(lead, client: httpx.AsyncClient) -> StepResult:
@@ -14,33 +18,47 @@ async def attempt(lead, client: httpx.AsyncClient) -> StepResult:
         )
 
     payload = {
-        "properties": {
-            "email": lead["email"],
-            "firstname": lead["name"],
-            "phone": lead["phone"] or "",
-        }
+        "inputs": [
+            {
+                "idProperty": "email",
+                "id": lead["email"],
+                "properties": {
+                    "email": lead["email"],
+                    "firstname": lead["name"],
+                    "phone": lead["phone"] or "",
+                    "lead_message": lead["message"],
+                },
+            }
+        ]
     }
 
     try:
         response = await client.post(
-            _HUBSPOT_CONTACTS_URL,
+            _HUBSPOT_UPSERT_URL,
             json=payload,
             headers={"Authorization": f"Bearer {settings.hubspot_access_token}"},
         )
     except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError):
         return StepResult(outcome=StepOutcome.TRANSIENT_FAILURE, error="hubspot request failed: network/timeout")
 
-    if response.status_code == 409:
-        # A contact with this email already exists in HubSpot (email must be unique
-        # there). Proper handling is a search-then-upsert against the existing contact;
-        # not implemented yet — flagged here rather than silently treated as success.
-        # Known Phase 4 limitation, follow-up: ADR 0009.
+    if response.status_code in (200, 201):
+        body = response.json()
+        results = body.get("results") or []
+        if results:
+            return StepResult(outcome=StepOutcome.SUCCESS, external_id=results[0].get("id"))
+        return StepResult(outcome=StepOutcome.PERMANENT_FAILURE, error=f"hubspot upsert returned no results: {response.text[:500]}")
+
+    if response.status_code == 207:
+        # Multi-status: our single input either succeeded or failed individually.
+        body = response.json()
+        results = body.get("results") or []
+        errors = body.get("errors") or []
+        if results and not errors:
+            return StepResult(outcome=StepOutcome.SUCCESS, external_id=results[0].get("id"))
         return StepResult(
             outcome=StepOutcome.PERMANENT_FAILURE,
-            error="hubspot contact already exists (409) — upsert not yet implemented",
+            error=f"hubspot upsert partial failure: {errors[:1] if errors else body}",
         )
 
     outcome = classify_http_status(response.status_code)
-    if outcome == StepOutcome.SUCCESS:
-        return StepResult(outcome=outcome, external_id=response.json().get("id"))
     return StepResult(outcome=outcome, error=f"hubspot returned {response.status_code}: {response.text[:500]}")
