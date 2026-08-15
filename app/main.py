@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.correlation import correlation_id_middleware
+from app.correlation import CorrelationIdMiddleware
 from app.db import close_pool, init_pool
 from app.http_client import close_http_client, init_http_client
 from app.logging_config import configure_logging
@@ -61,12 +61,6 @@ async def lifespan(app: FastAPI):
     logger.info("app_shutdown")
 
 
-app = FastAPI(title="Speed-to-Lead", lifespan=lifespan)
-app.middleware("http")(correlation_id_middleware)
-app.include_router(leads_router)
-
-
-@app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Safety net (ADR 0010): catches anything not already handled by a more specific
     handler (FastAPI/Starlette keep their own handling of HTTPException and validation
@@ -81,10 +75,27 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     Sentry's automatic instrumentation: because this handler already catches and
     responds to the exception, it never propagates further up the stack, which is
     exactly the signal Sentry's auto-capture relies on to notice something went wrong.
+
+    Registered via the FastAPI(exception_handlers=...) constructor argument below, NOT
+    the @app.exception_handler(Exception) decorator (ADR 0012, found via a Phase 7
+    failure-injection test): Starlette only wires a handler for the *bare* Exception
+    class into its top-level catch-all (ServerErrorMiddleware) if it's present in the
+    exception_handlers dict at construction time. HTTPException-based handlers (which is
+    everything else in this app -- 401/422/429/503) don't have this limitation and work
+    fine either way; only the generic Exception safety net does.
     """
     sentry_sdk.capture_exception(exc)
     logger.exception(f"unhandled_exception path={request.url.path}")
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+app = FastAPI(
+    title="Speed-to-Lead",
+    lifespan=lifespan,
+    exception_handlers={Exception: unhandled_exception_handler},
+)
+app.add_middleware(CorrelationIdMiddleware)
+app.include_router(leads_router)
 
 
 @app.get("/health")

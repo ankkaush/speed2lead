@@ -12,7 +12,17 @@ data are ever committed.
 
 ## Status
 
-Phase 6 (Observability) is in progress. Every request carries a correlation ID
+Phase 7 (Testing Pass) is complete. Failure paths built in earlier phases but never
+actually triggered are now covered (DB failure at intake, health-check DB failure, a
+genuinely unhandled exception, the reconciliation sweep surviving an internal error,
+pipeline step independence), alongside boundary/edge-case tests, a real concurrency test
+proving the idempotency `UNIQUE` constraint is actually race-safe under simultaneous
+requests, and security-scenario tests including a documented, deliberate replay-risk
+acceptance — see [ADR 0012](docs/decisions/0012-testing-pass.md). This pass also found
+and fixed two real bugs in how the global exception handler was wired, meaning real
+crashes were silently never reaching Sentry before this phase — not just a test gap.
+
+Phase 6 (Observability) is complete. Every request carries a correlation ID
 (`X-Request-ID`, accepted from the caller or generated) threaded automatically into every
 structured log line for that request; `/health` verifies real database connectivity
 instead of always saying "ok"; Sentry is wired up for both real crashes and a deliberate
@@ -55,6 +65,7 @@ that implies). See the phase roadmap below.
 | Reliability strategy | Classify + in-process backoff retry, no queue/broker | [`0009`](docs/decisions/0009-reliability-hardening.md) |
 | Security model | HMAC signature (server-to-server) + in-process rate limit | [`0010`](docs/decisions/0010-security-hardening.md) |
 | Observability | Correlation IDs, real health check, Sentry, SQL runbook (no dashboard) | [`0011`](docs/decisions/0011-observability.md) |
+| Testing pass | Failure injection, concurrency proof, accepted replay risk | [`0012`](docs/decisions/0012-testing-pass.md) |
 
 Every significant architectural decision — what it is, why it's needed, what alternatives
 were considered, and what trade-off is accepted — is recorded in
@@ -115,13 +126,13 @@ CI complexity unless a concrete requirement justifies them.
 
 0. Discovery
 1. Architecture & Key Decisions
-2. Foundation *(current phase)*
+2. Foundation
 3. Core Lead Pipeline / Walking Skeleton
 4. Reliability Hardening
 5. Security Hardening
 6. Observability
 7. Testing Pass
-8. Deployment
+8. Deployment *(current phase)*
 9. Production Review / Chaos Pass
 10. Documentation
 11. Reusability Review

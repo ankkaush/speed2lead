@@ -74,6 +74,23 @@ async def client():
 
 
 @pytest_asyncio.fixture
+async def client_like_real_deployment():
+    """Same as `client`, except `raise_app_exceptions=False` (ADR 0012, Phase 7): by
+    default httpx's ASGITransport re-raises an unhandled server-side exception into the
+    test process itself, on top of the actual HTTP response our exception handler
+    already sent -- useful for catching accidental bugs during normal test development,
+    since you get the real traceback instead of just a failing assertion. But it means
+    the default `client` fixture can't be used to test what a real deployed client
+    actually receives when something goes wrong, since a real server (uvicorn) has no
+    equivalent back-channel to the caller -- the caller only ever sees the HTTP response.
+    Use this fixture specifically for tests that need that real-world view."""
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+
+
+@pytest_asyncio.fixture
 async def db_pool():
     """A standalone pool for tests that exercise the repo layer directly (e.g.
     reconciliation eligibility), independent of the app's own pool lifecycle."""
