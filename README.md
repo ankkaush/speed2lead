@@ -11,9 +11,14 @@ security, observability, and deployment — each phase documented as it happened
 [`docs/decisions/`](docs/decisions/).
 
 **This is a public repository, released under the [MIT License](LICENSE) — free to use,
-modify, and adapt to your own business.** See [Configuration](#configuration-your-own-credentials)
+modify, and adapt to your own business.** See [Configuration](#4-configuration-your-own-credentials)
 below to set it up with your own credentials, and
-[Security considerations](#security-considerations) for what that means in practice.
+[Security considerations](#7-security-considerations) for what that means in practice.
+
+**Live deployment**: [speed-to-lead-bscp.onrender.com](https://speed-to-lead-bscp.onrender.com)
+(`/health` is public; `/leads` requires a valid signature — see
+[§4](#4-configuration-your-own-credentials)). Deployed on Render per
+[ADR 0014](docs/decisions/0014-deployment.md).
 
 ## 1. What this automation does
 
@@ -223,6 +228,8 @@ performed. Clone this repository and configure it with your own credentials per
 | [0011](docs/decisions/0011-observability.md) | Correlation IDs, real health check, Sentry, SQL runbook |
 | [0012](docs/decisions/0012-testing-pass.md) | Failure injection, concurrency proof, accepted replay risk |
 | [0013](docs/decisions/0013-reusability-and-public-release.md) | Adapter `Protocol`, MIT license, public-release audit |
+| [0014](docs/decisions/0014-deployment.md) | Render blueprint, shared production database, separate prod secret |
+| [0015](docs/decisions/0015-secret-hygiene-and-silent-failure-fix.md) | Secret whitespace validation, unexpected-exception handling fix |
 
 ## Project roadmap
 
@@ -234,8 +241,8 @@ performed. Clone this repository and configure it with your own credentials per
 5. Security Hardening
 6. Observability
 7. Testing Pass
-8. Deployment *(current phase)*
-9. Production Review / Chaos Pass
+8. Deployment
+9. Production Review / Chaos Pass *(current phase)*
 10. Documentation
 11. Reusability Review
 12. Case Study
